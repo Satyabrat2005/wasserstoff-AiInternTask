@@ -1,28 +1,53 @@
-# Python
+# === PYTHON (FastAPI backend) ===
 __pycache__/
 *.py[cod]
+*.pyo
+*.log
 *.sqlite3
 *.db
-*.log
-.env
+*.env
+.env.*
 .venv/
 venv/
+dist/
+build/
+site/
+.cache/
+migrations/
 
-# Node.js / React
+# PyInstaller
+*.spec
+
+# VSCode settings
+.vscode/
+
+# === FRONTEND (React, Vue, or similar) ===
 node_modules/
 dist/
 build/
+*.log
 npm-debug.log*
 yarn-debug.log*
+yarn-error.log*
+pnpm-lock.yaml
 
-# VSCode
-.vscode/
-
-# OS / Misc
+# === OS FILES ===
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Icon?
+
+# === TEST & TEMP FILES ===
+*.swp
+*.swo
 *.bak
 *.tmp
+*.old
 
-# Git
-*.orig
+# === Git ===
+.gitattributes
+.gitignore
+
+# === PDF Uploads & Data (your custom folders) ===
+backend/data/
+uploads/
