@@ -1,4 +1,4 @@
-# === PYTHON (FastAPI backend) ===
+# === Python ===
 __pycache__/
 *.py[cod]
 *.pyo
@@ -15,13 +15,13 @@ site/
 .cache/
 migrations/
 
-# PyInstaller
+# === PyInstaller ===
 *.spec
 
-# VSCode settings
+# === VSCode ===
 .vscode/
 
-# === FRONTEND (React, Vue, or similar) ===
+# === FRONTEND (React, Vue, etc.) ===
 node_modules/
 dist/
 build/
@@ -37,17 +37,13 @@ Thumbs.db
 ehthumbs.db
 Icon?
 
-# === TEST & TEMP FILES ===
+# === TEMP & TEST ===
 *.swp
 *.swo
 *.bak
 *.tmp
 *.old
 
-# === Git ===
-.gitattributes
-.gitignore
-
-# === PDF Uploads & Data (your custom folders) ===
+# === PDF Uploads & Data ===
 backend/data/
 uploads/
