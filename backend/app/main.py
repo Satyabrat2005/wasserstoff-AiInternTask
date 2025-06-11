@@ -1,7 +1,9 @@
 from fastapi import FastAPI, UploadFile, File
 from app.services.document_processor import save_uploaded_file, extract_text_from_pdf
+from app.api.routes import router
 
 app = FastAPI()
+app.include_router(router)
 
 @app.get("/")
 def home():
@@ -12,6 +14,11 @@ async def upload(file: UploadFile = File(...)):
     contents = await file.read()
     saved_path = save_uploaded_file(contents, file.filename)
     extracted_text = extract_text_from_pdf(saved_path)
+
+    try:
+        extracted_text = extract_text_from_pdf(saved_path)
+    except Exception as e:
+        return {"error": f"Failed to process PDF: {str(e)}"}
 
     return {
         "filename": file.filename,
