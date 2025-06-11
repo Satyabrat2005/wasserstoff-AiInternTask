@@ -1,9 +1,8 @@
 from fastapi import FastAPI, UploadFile, File
 from app.services.document_processor import save_uploaded_file, extract_text_from_pdf
-from app.api.routes import router
+from app.api.routes import router as api_router
 
 app = FastAPI()
-app.include_router(router)
 
 @app.get("/")
 def home():
@@ -25,3 +24,5 @@ async def upload(file: UploadFile = File(...)):
         "total_pages": len(extracted_text),
         "sample": extracted_text[:2]  # return first 2 pages
     }
+#  Include the router from routes.py
+app.include_router(api_router)
