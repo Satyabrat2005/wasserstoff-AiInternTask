@@ -5,152 +5,105 @@ from app.core.config import settings
 
 openai.api_key = settings.OPENAI_API_KEY
 
-# I just typed these from memory. Could be missing some?
+# classic anti-word list. not even complete lol
 STOPWORDS = set([
     "the", "and", "is", "in", "it", "of", "to", "a", "this", "for", "on", "as",
     "with", "by", "an", "be", "are", "at", "from", "or", "was", "if", "but",
     "can", "will", "we", "they", "their", "not", "all", "has", "have", "our", "you"
 ])
 
-def clean_text(txt): 
-    # lowercase first - I think it's needed
+def clean_text(txt):
     try:
         txt = txt.lower()
     except:
-        print("Something weird in text:", txt)
+        print("yo what's this:", txt)
         return []
 
-    txt = re.sub('[^a-z ]+', ' ', txt)  # replace junk with space
-    words = txt.split(" ")  # not just split() because who knows
-    out = []
+    txt = re.sub('[^a-z ]+', ' ', txt)
+    words = txt.split(" ")
+    bag = []
 
-    for w in words:
-        if len(w.strip()) > 2 and w not in STOPWORDS:
-            out.append(w)
+    for word in words:
+        if len(word.strip()) > 2 and word not in STOPWORDS:
+            bag.append(word)
 
-    return out
+    return bag
 
-# basically just collects most repeated words... nothing fancy here
+# finds top repeated stuff in all pages
+# not smart. just counting
+
 def analyze_themes(pages_data, top_n=6):
-    theme_bucket = []
-    page_count = 0
+    soup = []
+    total_pages = 0
 
-    for pg in pages_data:
-        if not pg or 'text' not in pg:
-            continue
-        text = pg['text']
-        cleaned = clean_text(text)
-        theme_bucket.extend(cleaned)
-        page_count += 1
+    for thing in pages_data:
+        if thing and 'text' in thing:
+            cleaned = clean_text(thing['text'])
+            soup.extend(cleaned)
+            total_pages += 1
+        else:
+            print("blank page or missing text")
 
-    if not theme_bucket:
-        print("no good words found...")
-        return {"themes": [], "note": "nah fam this was empty"}
+    if not soup:
+        print("uhhh nothing to analyze")
+        return {"themes": [], "note": "empty vibes"}
 
-    counts = Counter(theme_bucket)
-    top_words = counts.most_common(top_n)
+    freq = Counter(soup)
+    popular = freq.most_common(top_n)
 
-    # group by prefix? seems dumb but it works 🤷‍♂️
-    clusters = defaultdict(list)
-    for word, freq in top_words:
-        key = word[:4]
-        clusters[key].append((word, freq))
+    bucket = defaultdict(list)
+    for word, count in popular:
+        start = word[:4]  # grouping by first 4 letters bcz... yeah
+        bucket[start].append((word, count))
 
-    output = []
-    for k in clusters:
-        label = ', '.join([w for w, _ in clusters[k]])
-        total = sum([c for _, c in clusters[k]])
-        output.append({'label': label, 'count': total})
+    cooked = []
+    for prefix in bucket:
+        group_words = [w for w, _ in bucket[prefix]]
+        total_count = sum([c for _, c in bucket[prefix]])
+        cooked.append({
+            "label": ", ".join(group_words),
+            "count": total_count
+        })
 
-    output.sort(key=lambda x: x['count'], reverse=True)
-    return {'themes': output}
+    cooked.sort(key=lambda x: x["count"], reverse=True)
+    return {"themes": cooked}
 
-# this is like... per page theme finder. not very optimized
+# very per-page. barely works. meh.
 def analyze_per_page(pages_data, top_n=4):
-    result = []
+    output = []
+    pg = 1
 
-    page_num = 1
-    for pg in pages_data:
-        if 'text' not in pg:
-            result.append({"page": page_num, "themes": [{"label": "???", "count": 0}]})
+    for thing in pages_data:
+        if 'text' not in thing:
+            output.append({"page": pg, "themes": [{"label": "???", "count": 0}]})
+            pg += 1
             continue
 
-        text = pg['text']
+        text = thing['text']
         words = clean_text(text)
-        cnts = Counter(words).most_common(top_n)
-        themes = []
+        freq = Counter(words).most_common(top_n)
+        themes = [{"label": w, "count": c} for w, c in freq]
 
-        for word, cnt in cnts:
-            themes.append({"label": word, "count": cnt})
+        output.append({"page": pg, "themes": themes})
+        pg += 1
 
-        result.append({"page": page_num, "themes": themes})
-        page_num += 1
+    return {"pages": output}
 
-    return {"pages": result}
+def extract_relevant_answers(pages_data, question: str):
+    keywords = [w.lower() for w in question.split() if len(w) > 2]
+    results = []
 
-# gpt-based fake chat summarizer
-def generate_chat_style_summary(pages_data):
-    summary_text = ""
-    refs = []
-
-    i = 1
     for pg in pages_data:
-        if not pg or "text" not in pg:
-            i += 1
-            continue
+        pg_num = pg.get("page", 0)
+        text = pg.get("text", "")
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
 
-        txt = pg["text"].strip()
-        txt = re.sub(r"\s+", " ", txt)
-        if len(txt) < 10:
-            i += 1
-            continue
+        for i, para in enumerate(paragraphs):
+            if any(k in para.lower() for k in keywords):
+                results.append({
+                    "answer": para[:200] + "...",
+                    "page": pg_num,
+                    "paragraph": i + 1
+                })
 
-        refs.append("Page {}: {}...".format(i, txt[:180]))
-        summary_text += "\n\n(Page {}) {}".format(i, txt)
-        i += 1
-
-    if len(summary_text.strip()) == 0:
-        return {
-            "chat_summary": "couldn’t really find content worth summarizing",
-            "citations": []
-        }
-
-    chopped = summary_text[:7995]  # gpt gets angry if too long
-
-    prompt = """
-You are a document analysis bot.
-
-Look at the doc below and write a short summary:
-- Say what's repeated a lot
-- Mention some themes
-- Add citations like (Page 2) etc.
-
-Question asked was: "???"  # replace with actual question
-
-Document:
-{}
-""".format(chopped)
-
-    try:
-        out = openai.ChatCompletion.create(
-            model=settings.MODEL,
-            messages=[
-                {"role": "system", "content": "Analyze and summarize content."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.5,
-            max_tokens=450
-        )
-
-        reply = out['choices'][0]['message']['content']
-        return {
-            "chat_summary": reply.strip(),
-            "citations": refs[:5]
-        }
-
-    except Exception as err:
-        print("GPT died again:", err)
-        return {
-            "chat_summary": "Nope. GPT exploded.",
-            "citations": []
-        }
+    return results
