@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form
 from typing import List
 from app.services.document_processor import save_uploaded_file, extract_text_from_pdf
-from app.services.theme_analyzer import analyze_themes, extract_relevant_answers, generate_chat_style_summary
+from app.services.theme_analyzer import analyze_themes, extract_relevant_answers
 
 router = APIRouter()
 
