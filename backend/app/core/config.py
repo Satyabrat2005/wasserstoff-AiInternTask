@@ -4,6 +4,12 @@ from dotenv import load_dotenv
 # if user wants to use a .env file, load it
 load_dotenv()
 
+class Settings:
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    MODEL = "gpt-3.5-turbo"  # or "gpt-4" if you have access
+
+settings = Settings()
+
 # db stuff 
 # TODO: remove if unused later
 DATABASE_URL = os.getenv("DB_URL", "sqlite:///./dummy.db")
