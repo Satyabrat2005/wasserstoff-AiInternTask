@@ -1,32 +1,39 @@
-# GenAI Document Chatbot
+# 🧠 themeBot – Document Theme Identifier
 
-🚧 **Project under development** 🚧
-
-This is a document-based chatbot powered by GenAI. It allows users to upload PDFs and ask questions based on the document content.
-
-## Features
-
-- PDF upload and text extraction
-- Theme-based content retrieval using embeddings
-- Chat-like interface (frontend integration upcoming)
-
-## Tech Stack
-
-- FastAPI (Backend)
-- LangChain + OpenAI
-- React (Frontend - planned)
-- GitHub for version control
-
-## Status
-
-- Backend setup ✅
-- Text extraction module ✅
-- Embedding manager in progress 🚧
-- Frontend integration pending 🔜
-
-## Setup Instructions (To be added after full development)
+A FastAPI + Streamlit powered tool that:
+- Accepts PDF uploads (multiple, scanned too!)
+- Extracts key text with OCR fallback
+- Lets users ask questions per doc
+- Returns answers with clear citations (doc, page, para)
+- Synthesizes themes (no GPT dependency)
 
 ---
 
-**Note:** This project is part of an internship assignment and will be updated frequently.
+## 🚀 Features
 
+- 🔍 Multi-PDF question search
+- 🧾 OCR for scanned documents
+- 📊 Table-style results with citations
+- 📚 Theme summaries per query
+- 🧠 Search history retained in session
+
+---
+
+## 📦 Folder Structure
+
+├── backend/ # FastAPI backend logic
+├── frontend/ # Streamlit UI
+├── docs/ # Documentation + screenshots
+├── tests/ # Pytest unit tests
+├── demo/ # Sample PDFs to try
+└── README.md
+---
+
+## 🧪 Quickstart
+
+1. Clone the repo
+2. Run:
+   ```bash
+   pip install -r requirements.txt
+   uvicorn backend.app.main:app --reload
+   streamlit run frontend/app.py
