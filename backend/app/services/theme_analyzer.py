@@ -62,3 +62,24 @@ def analyze_per_page(pages_data, top_n=4):
         })
 
     return {"pages": result}
+
+# generate fake chat-style summary from page data
+def generate_chat_style_summary(pages_data):
+    lines = []
+    citations = []
+
+    for idx, pg in enumerate(pages_data, start=1):
+        raw = pg.get("text", "")
+        snippet = re.sub(r'\s+', ' ', raw.strip())[:200]  # trim whitespace and cut off
+        if snippet:
+            lines.append(f"Page {idx} >>> '{snippet}...'")
+            citations.append((idx, snippet))
+
+    summary = "--- SUMMARY HIGHLIGHTS ---\n\n"
+    for c in citations[:5]:  # only first few to avoid spam
+        summary += f"Page {c[0]} says: \"{c[1][:100]}...\"\n"
+
+    return {
+        "chat_summary": summary.strip(),
+        "citations": lines[:10]
+    }
