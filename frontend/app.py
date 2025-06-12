@@ -74,7 +74,11 @@ if pdf:
     if question:
         with st.spinner("asking the sacred pdf spirit..."):
             try:
-                chat = requests.post("http://localhost:8000/chat-summary/", files=actual_payload)
+                chat = requests.post(
+                 "http://localhost:8000/chat-summary/",
+                 files=actual_payload,
+                data={"question": question}  # <- THIS IS MANDATORY
+                )
                 if chat.status_code == 200:
                     chatdata = chat.json()
                     st.markdown("### 🧠 what it kinda says:")
