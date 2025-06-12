@@ -4,57 +4,79 @@ from app.services.theme_analyzer import analyze_themes
 
 router = APIRouter()
 
+
 @router.get("/")
-def just_checking():
-    return {"msg": "Yo! It's working, GenAI chatbot route up"}
+def ping():
+    # it's alive!!! (probably)
+    return {"msg": "yep, the backend breathes 😮‍💨"}
 
+
+# someone pls refactor this later
 @router.post("/upload/")
-async def upload_file_here(file: UploadFile = File(...)):
-    # read file into bytes
-    stuff = await file.read()
-
-    # save file somewhere
+async def badly_named_upload_thing(file: UploadFile = File(...)):
     try:
-        file_path = save_uploaded_file(stuff, file.filename)
-    except Exception as e:
-        return {"error": f"couldn't save file: {e}"}
+        print("about to save the file... hope it doesn’t explode")
+        saved_path = await save_uploaded_file(file, file.filename)
+        pagez = extract_text_from_pdf(saved_path)
+        print("ok extracted stuff, probs worked??")
+    except Exception as err:
+        print("something died 💀:", err)
+        return {"error": f"nope. couldn’t read the file: {err}"}
 
-    # extract text
-    try:
-        final_text = extract_text_from_pdf(file_path)
-    except Exception as e:
-        return {"error": f"couldn't extract: {e}"}
-
-    # return sample
     return {
         "filename": file.filename,
-        "how_many_pages": len(final_text),
-        "sample_pages": final_text[:2]  # just give first two
+        "total_pages": len(pagez),
+        "sample": pagez[:2]  # lazy preview, 2 is fine
     }
 
-@router.post("/get-themes/")
-async def do_some_theme_analysis(file: UploadFile = File(...)):
-    raw = await file.read()
 
+@router.post("/get-themes/")
+async def themes_idk(file: UploadFile = File(...)):
     try:
-        pth = save_uploaded_file(raw, file.filename)
-        text_data = extract_text_from_pdf(pth)
-        result = analyze_themes(text_data)
-        return result
-    except Exception as err:
-        return {"status": "fail", "reason": str(err)}
+        temp = await save_uploaded_file(file, file.filename)
+        pages = extract_text_from_pdf(temp)
+        # this better return themes or I cry
+        theme_stuff = analyze_themes(pages)
+        return theme_stuff
+    except Exception as e:
+        print("theme error:", e)
+        return {"status": "fail", "reason": str(e)}
+
 
 @router.post("/classify-pages/")
-async def classify_each_page(file: UploadFile = File(...)):
-    pdf_path = await save_uploaded_file(file)
-    pages_data = extract_text_from_pdf(pdf_path)
-    page_summaries = []
+async def classify_pages_bro(file: UploadFile = File(...)):
+    try:
+        path = await save_uploaded_file(file, file.filename)
+        pgz = extract_text_from_pdf(path)
 
-    for p in pages_data:
-        summary = f"Probably something about: {p['text'][:150]}"  # Or call LLM
-        page_summaries.append({
-            "page": p['page'],
-            "summary": summary
-        })
+        results = []
+        for i in pgz:
+            txt = i.get("text", "uh nothing here")
+            summaryish = f"idk probably about: {txt[:177]}..."
+            results.append({
+                "page": i.get("page", "???"),
+                "summary": summaryish
+            })
+        return {"page_summaries": results}
+    except Exception as e:
+        print("classifier borked:", e)
+        return {"status": "error", "message": str(e)}
 
-    return {"page_summaries": page_summaries}
+
+# lol chat summary but not really
+@router.post("/chat-summary/")
+async def not_really_chatgpt(file: UploadFile = File(...)):
+    try:
+        meh = await save_uploaded_file(file, file.filename)
+        pages = extract_text_from_pdf(meh)
+        joined = "\n\n".join([p['text'] for p in pages])
+        fake_summary = "ummm... probably this is about: " + joined[:333] + "..."
+        some_sources = [f"page {p['page']}" for p in pages[:min(3, len(pages))]]
+        return {
+            "chat_summary": fake_summary,
+            "citations": some_sources
+        }
+    except Exception as e:
+        print("bruh", e)
+        return {"status": "fail", "error": str(e)}
+# this is just a placeholder for the chat summary endpoint
