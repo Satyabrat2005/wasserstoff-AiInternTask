@@ -1,10 +1,9 @@
 import streamlit as st
 import requests
+import pandas as pd
 
-# basic setup
+# dark mode overrides — no eyeball pain please
 st.set_page_config(page_title="themeBot", page_icon="🧠", layout="centered")
-
-# dark theme override (couldn’t stand the default white)
 st.markdown("""
 <style>
 body { background: #000 !important; color: #ddd !important; }
@@ -23,86 +22,107 @@ body { background: #000 !important; color: #ddd !important; }
 </style>
 """, unsafe_allow_html=True)
 
+# initialize history once
+if "history" not in st.session_state:
+    st.session_state.history = []
+
 st.title("📄 themeBot vOCR")
-st.caption("Upload PDF files. Ask stuff. Get answers. OCR if needed.")
+st.caption("Upload some PDFs, ask questions, get citations. OCR included.")
 
-# multiple PDF upload
 pdfs = st.file_uploader("Drop PDF(s) here", type=["pdf"], accept_multiple_files=True)
-question = st.text_input("Ask anything", placeholder="e.g. what fines were issued?")
+question = st.text_input("Ask anything", placeholder="e.g. what sections were violated?")
 
-# only continue if we have files
+# ---- Upload and Preview ----
 if pdfs:
-    with st.spinner("Uploading and parsing..."):
+    with st.spinner("Uploading and extracting..."):
         for pdf in pdfs:
             try:
                 file_bytes = pdf.getvalue()
                 files = {"file": (pdf.name, file_bytes, "application/pdf")}
-                r = requests.post("http://localhost:8000/upload/", files=files)
+                res = requests.post("http://localhost:8000/upload/", files=files)
 
-                if r.status_code == 200:
-                    data = r.json()
-                    st.success(f"{data['filename']} uploaded ({data.get('total_pages', '?')} pages)")
-                    st.markdown("#### Sample Preview")
+                if res.status_code == 200:
+                    data = res.json()
+                    st.success(f"✅ {data['filename']} uploaded ({data.get('total_pages', '?')} pages)")
+                    st.markdown("#### Sample Preview:")
                     for page in data.get("sample", [])[:2]:
                         st.markdown(f"**Page {page['page']}**")
                         st.code(page["text"][:600])
                 else:
-                    st.error(f"{pdf.name} upload failed (status {r.status_code})")
+                    st.error(f"{pdf.name} upload failed ({res.status_code})")
             except Exception as e:
-                st.error(f"{pdf.name} upload crashed: {e}")
+                st.error(f"Error uploading {pdf.name}: {e}")
 
     st.markdown("---")
 
-    # process question if given
+    # ---- Search Logic ----
     if question:
-        with st.spinner("Looking through all docs..."):
+        with st.spinner("Searching for answers..."):
             try:
                 files_payload = [
                     ("files", (pdf.name, pdf.getvalue(), "application/pdf")) for pdf in pdfs
                 ]
-                form_payload = {"question": question}
+                form_data = {"question": question}
 
-                res = requests.post("http://localhost:8000/chat-summary/", files=files_payload, data=form_payload)
+                res = requests.post("http://localhost:8000/chat-summary/", files=files_payload, data=form_data)
 
                 if res.status_code == 200:
-                    output = res.json()
-                    st.markdown("### 📌 Search Results")
+                    out = res.json()
+                    rows = []
 
-                    for row in output.get("table_data", []):
-                        doc = row['doc_id']
-                        citation = row['citation']
-                        is_ocr = "[OCR]" in row["answer"]
-                        answer = row["answer"].replace("[OCR]", "").strip()
+                    for row in out.get("table_data", []):
+                        answer_clean = row["answer"].replace("[OCR]", "").strip()
+                        ocr_flag = "(OCR)" if "[OCR]" in row["answer"] else ""
+                        rows.append({
+                            "Document ID": row["doc_id"],
+                            "Extracted Answer": answer_clean,
+                            "Citation": f"{row['citation']} {ocr_flag}"
+                        })
 
-                        st.markdown(f"""
-**📄 File:** `{doc}`  
-📍 **Location:** {citation} {"🧾 OCR" if is_ocr else ""}  
-💬 **Text:**  
-> {answer}
-""")
+                    if rows:
+                        st.markdown("### 📊 Search Results Table")
+                        df = pd.DataFrame(rows)
+                        st.table(df)
+
+                        # add to session history
+                        st.session_state.history.append({
+                            "question": question,
+                            "table": df
+                        })
+                    else:
+                        st.info("No results found in the documents.")
+
                 else:
-                    st.error("Search request failed")
-            except Exception as e:
-                st.error(f"Search crashed: {e}")
+                    st.error("Search failed. Try again?")
+            except Exception as err:
+                st.error(f"Something broke: {err}")
 
     st.markdown("---")
 
-    # quick summary per page — only first PDF
-    if pdfs:
-        st.markdown("### 📂 TL;DR for first doc (page-wise)")
+    # ---- Page-by-page summary for 1st file ----
+    st.markdown("## 📂 TL;DR per page (1st file only)")
+    try:
+        payload = {"file": (pdfs[0].name, pdfs[0].getvalue(), "application/pdf")}
+        r = requests.post("http://localhost:8000/classify-pages/", files=payload)
 
-        try:
-            payload = {"file": (pdfs[0].name, pdfs[0].getvalue(), "application/pdf")}
-            r = requests.post("http://localhost:8000/classify-pages/", files=payload)
+        if r.status_code == 200:
+            results = r.json().get("page_summaries", [])
+            for entry in results:
+                st.markdown(f"**Page {entry['page']}**")
+                st.write(entry["summary"])
+        else:
+            st.warning("Page summarizer didn’t return anything useful.")
+    except Exception as e:
+        st.error(f"Page classifier error: {e}")
 
-            if r.status_code == 200:
-                results = r.json().get("page_summaries", [])
-                for entry in results:
-                    st.markdown(f"**Page {entry['page']}**")
-                    st.write(entry["summary"])
-            else:
-                st.warning("Page summary didn't return anything useful.")
-        except Exception as e:
-            st.error(f"Page breakdown exploded: {e}")
+    st.markdown("---")
+
+    # ---- Search History ----
+    if st.session_state.history:
+        st.markdown("## 🕓 Previous Queries")
+        for idx, past in enumerate(reversed(st.session_state.history)):
+            st.markdown(f"### 🔁 Query {len(st.session_state.history) - idx}: *{past['question']}*")
+            st.table(past["table"])
+
 else:
-    st.info("Upload at least one PDF to get started.")
+    st.info("Upload at least one PDF to start.")
