@@ -5,57 +5,72 @@ from pdf2image import convert_from_path
 from PIL import Image
 from tqdm import tqdm
 
-# set uplod dir
-UPLOAD_DIR = "backend/data"  # NOTE: maybe change later?
+# just drop everything into this folder (lazy, but works)
+UPLOAD_DIR = "backend/data"
 
-def save_uploaded_file(file_bytes, file_name):  # yes, bytes
-    # make sure dir exists
+def save_uploaded_file(file_bytes, file_name):
+    """
+    Save the uploaded file to disk.
+    Just saves raw bytes into backend/data.
+    """
     if not os.path.exists(UPLOAD_DIR):
         os.makedirs(UPLOAD_DIR)
 
-    f_path = os.path.join(UPLOAD_DIR, file_name)
+    path = os.path.join(UPLOAD_DIR, file_name)
     
-    with open(f_path, "wb") as tempf:
-        tempf.write(file_bytes)
-    return f_path
-
+    with open(path, "wb") as f:
+        f.write(file_bytes)
+    
+    return path
 
 def extract_text_from_pdf(pdf_path):
-    results = []
+    """
+    Extract text from a PDF.
+    - First tries to use PyMuPDF (fitz)
+    - If it fails or finds nothing, does OCR with pytesseract
+    """
+    text_results = []
 
-    # open the pdf file with fitz (was pymupdf?)
     try:
         doc = fitz.open(pdf_path)
-    except Exception as oops:
-        print("error opening:", oops)
+    except Exception as err:
+        print("💥 Couldn't open the PDF:", err)
         return []
 
-    # loop through pages
     for i in tqdm(range(len(doc)), desc="Scraping Pages"):
-        pg = doc.load_page(i)  # get page
+        page_num = i + 1
         try:
-            txt = pg.get_text()
-        except:
+            page = doc.load_page(i)
+            txt = page.get_text()
+        except Exception as boom:
+            print(f"😵 failed to load page {page_num}:", boom)
             txt = ""
-        
+
+        # if the page had proper text, store that
         if txt and len(txt.strip()) > 5:
-            results.append({
-                "page": i+1,  # human-readable page numbers start at 1
-                "text": txt
+            text_results.append({
+                "page": page_num,
+                "text": txt.strip()
             })
         else:
-            # OCR fallback
-            print(f"[INFO] Doing OCR for page {i+1}")
+            # OCR fallback if .get_text() gave up
+            print(f"🔍 Page {page_num} is probably scanned. Running OCR...")
             try:
-                imgz = convert_from_path(pdf_path, first_page=i+1, last_page=i+1)
-                for im in imgz:
-                    ocr_result = pytesseract.image_to_string(im)
-                    if ocr_result and len(ocr_result.strip()) > 3:
-                        results.append({
-                            "page": i+1,
-                            "text": ocr_result
+                images = convert_from_path(pdf_path, first_page=page_num, last_page=page_num)
+                for image in images:
+                    ocr_text = pytesseract.image_to_string(image)
+                    if ocr_text and len(ocr_text.strip()) > 3:
+                        text_results.append({
+                            "page": page_num,
+                            "text": f"[OCR] {ocr_text.strip()}"
                         })
-            except Exception as er:
-                print("OCR fail page", i+1, er)
-    
-    return results
+                    else:
+                        print(f"😑 OCR found nothing on page {page_num}")
+            except Exception as oops:
+                print(f"💀 OCR crash on page {page_num}:", oops)
+                text_results.append({
+                    "page": page_num,
+                    "text": "[OCR] Failed to extract text"
+                })
+
+    return text_results
