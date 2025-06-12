@@ -22,6 +22,9 @@ body { background: #000 !important; color: #ddd !important; }
 </style>
 """, unsafe_allow_html=True)
 
+# your live backend
+API_URL = "https://wasserstoff-aiinterntask-3.onrender.com"
+
 # initialize history once
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -39,7 +42,7 @@ if pdfs:
             try:
                 file_bytes = pdf.getvalue()
                 files = {"file": (pdf.name, file_bytes, "application/pdf")}
-                res = requests.post("http://localhost:8000/upload/", files=files)
+                res = requests.post(f"{API_URL}/upload/", files=files)
 
                 if res.status_code == 200:
                     data = res.json()
@@ -64,7 +67,7 @@ if pdfs:
                 ]
                 form_data = {"question": question}
 
-                res = requests.post("http://localhost:8000/chat-summary/", files=files_payload, data=form_data)
+                res = requests.post(f"{API_URL}/chat-summary/", files=files_payload, data=form_data)
 
                 if res.status_code == 200:
                     out = res.json()
@@ -103,7 +106,7 @@ if pdfs:
     st.markdown("## 📂 TL;DR per page (1st file only)")
     try:
         payload = {"file": (pdfs[0].name, pdfs[0].getvalue(), "application/pdf")}
-        r = requests.post("http://localhost:8000/classify-pages/", files=payload)
+        r = requests.post(f"{API_URL}/classify-pages/", files=payload)
 
         if r.status_code == 200:
             results = r.json().get("page_summaries", [])
