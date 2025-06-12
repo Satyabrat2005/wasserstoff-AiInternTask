@@ -43,3 +43,18 @@ async def do_some_theme_analysis(file: UploadFile = File(...)):
         return result
     except Exception as err:
         return {"status": "fail", "reason": str(err)}
+
+@router.post("/classify-pages/")
+async def classify_each_page(file: UploadFile = File(...)):
+    pdf_path = await save_uploaded_file(file)
+    pages_data = extract_text_from_pdf(pdf_path)
+    page_summaries = []
+
+    for p in pages_data:
+        summary = f"Probably something about: {p['text'][:150]}"  # Or call LLM
+        page_summaries.append({
+            "page": p['page'],
+            "summary": summary
+        })
+
+    return {"page_summaries": page_summaries}
