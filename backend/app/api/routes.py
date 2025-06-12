@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, Form
 from app.services.document_processor import save_uploaded_file, extract_text_from_pdf
 from app.services.theme_analyzer import analyze_themes
 
@@ -26,7 +26,7 @@ async def badly_named_upload_thing(file: UploadFile = File(...)):
     return {
         "filename": file.filename,
         "total_pages": len(pagez),
-        "sample": pagez[:2]  # lazy preview, 2 is fine
+        "sample": pagez[:15]  # lazy preview, 15 is fine
     }
 
 
@@ -65,18 +65,21 @@ async def classify_pages_bro(file: UploadFile = File(...)):
 
 # lol chat summary but not really
 @router.post("/chat-summary/")
-async def not_really_chatgpt(file: UploadFile = File(...)):
+async def not_really_chatgpt(file: UploadFile = File(...), question: str = Form(...) ):
     try:
-        meh = await save_uploaded_file(file, file.filename)
-        pages = extract_text_from_pdf(meh)
-        joined = "\n\n".join([p['text'] for p in pages])
-        fake_summary = "ummm... probably this is about: " + joined[:333] + "..."
-        some_sources = [f"page {p['page']}" for p in pages[:min(3, len(pages))]]
-        return {
-            "chat_summary": fake_summary,
-            "citations": some_sources
-        }
+        print(f"got a question: {question}")
+        saved = await save_uploaded_file(file, file.filename)
+        pages = extract_text_from_pdf(saved)
+
+        # do your theme-style summary thing here
+        summary_data = generate_chat_style_summary(pages)
+
+        # Include the user's question in the response for now
+        summary_data["chat_summary"] = f"you asked: '{question}'\n\n" + summary_data.get("chat_summary", "")
+
+        return summary_data
+
     except Exception as e:
-        print("bruh", e)
+        print("chat-summary blew up 💣:", e)
         return {"status": "fail", "error": str(e)}
 # this is just a placeholder for the chat summary endpoint
