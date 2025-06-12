@@ -1,83 +1,120 @@
 from fastapi import APIRouter, UploadFile, File, Form
+from typing import List
 from app.services.document_processor import save_uploaded_file, extract_text_from_pdf
-from app.services.theme_analyzer import analyze_themes, generate_chat_style_summary
+from app.services.theme_analyzer import analyze_themes, extract_relevant_answers, generate_chat_style_summary
 
 router = APIRouter()
 
-# Just to check if this trashpile works
+# is the server breathing? poke it to find out
 @router.get("/")
-def this_is_alive_right():
-    print("backend woke up")
-    return {"message": "backend's somehow running 😐"}
+def is_it_working_or_na():
+    print("👀 someone pinged us. shocking.")
+    return {"msg": "backend’s technically running... somehow 🧟"}
 
-# Upload route – but nobody knows what really happens
+
+# Upload a PDF and hope everything doesn’t explode
 @router.post("/upload/")
-async def whatever_upload_thing(file: UploadFile = File(...)):
-    print("uploading... maybe?")
-    try:
-        file_path_finally = await save_uploaded_file(file, file.filename)
-        stuff = extract_text_from_pdf(file_path_finally)
-        print("extracted like", len(stuff), "pages I guess")
-    except Exception as lol:
-        print("bruh error in upload:", lol)
-        return {"error": "nuh uh. can't do this. 🧨", "details": str(lol)}
+async def dump_pdf_here(file: UploadFile = File(...)):
+    print(f"received file: {file.filename} – guess I’ll try to handle it 😩")
 
-    # why 15? no one knows
+    try:
+        # read the file like it's 2005 and we forgot async existed
+        file_bytes = await file.read()
+        path = save_uploaded_file(file_bytes, file.filename)
+        pages = extract_text_from_pdf(path)
+        print(f"extracted like {len(pages)} pages? I hope. 📄")
+    except Exception as chaos:
+        print("🚨 OH NO: upload crashed hard:", chaos)
+        return {
+            "error": "nope. couldn’t process that mess 🤷‍♂️",
+            "excuse": str(chaos)
+        }
+
     return {
         "filename": file.filename,
-        "pages": len(stuff),
-        "sample": stuff[:15]
+        "num_pages": len(pages),
+        "sample_pages": pages[:15]  # 15 is not negotiable.
     }
 
-# theme thingy
+
+# Try to extract “themes” like we know what we’re doing
 @router.post("/get-themes/")
-async def random_theme_grabber(file: UploadFile = File(...)):
-    try:
-        print("theme time")
-        maybe_here = await save_uploaded_file(file, file.filename)
-        every_page = extract_text_from_pdf(maybe_here)
-        themes_idc = analyze_themes(every_page)
-        print("themes done ✅")
-        return themes_idc
-    except Exception as meh:
-        print("theme thing exploded", meh)
-        return {"status": "nah", "why": str(meh)}
+async def kinda_sorta_find_themes(file: UploadFile = File(...)):
+    print("⚙️ okay let’s try to find some 'themes' or whatever")
 
-# summarize each page like we're tired
+    try:
+        file_bytes = await file.read()
+        path = save_uploaded_file(file_bytes, file.filename)
+        pages = extract_text_from_pdf(path)
+        themes = analyze_themes(pages)
+        print("✨ found a few things that looked like themes. maybe.")
+        return themes
+    except Exception as meltdown:
+        print("💣 theme analyzer just collapsed:", meltdown)
+        return {
+            "status": "bruh no",
+            "error": str(meltdown)
+        }
+
+
+# Summarize each page. Badly. With vibes.
 @router.post("/classify-pages/")
-async def per_page_classifier_be_like(file: UploadFile = File(...)):
-    try:
-        path_or_something = await save_uploaded_file(file, file.filename)
-        page_dump = extract_text_from_pdf(path_or_something)
-        final_output = []
+async def really_loose_page_summary(file: UploadFile = File(...)):
+    print("📝 about to summarize pages. loosely. very loosely.")
 
-        for pg in page_dump:
-            content = pg.get("text", "").strip()
-            summaryish = "probably about: " + content[:169] + "..." if content else "???"
-            final_output.append({
-                "page": pg.get("page", -1),
-                "summary": summaryish
+    try:
+        file_bytes = await file.read()
+        path = save_uploaded_file(file_bytes, file.filename)
+        pages = extract_text_from_pdf(path)
+
+        results = []
+        for pg in pages:
+            text = pg.get("text", "").strip()
+            snippet = text[:177] + "..." if text else "🫠 literally nothing here"
+            results.append({
+                "page": pg.get("page", "no clue"),
+                "summary": f"probably about: {snippet}"
             })
 
-        return {"summaries": final_output}
+        print("📦 page summaries done-ish")
+        return {"summaries": results}
 
-    except Exception as err_thing:
-        print("classifier just gave up:", err_thing)
-        return {"status": "nope", "what": str(err_thing)}
+    except Exception as this_is_fine:
+        print("🔥 classifier faceplanted:", this_is_fine)
+        return {
+            "status": "nah",
+            "what": str(this_is_fine)
+        }
 
-# fake chat summary with real confusion
+
+# Pretend to be chatGPT without actually being one (we swear)
 @router.post("/chat-summary/")
-async def fake_chat_summary_bro(file: UploadFile = File(...), question: str = Form(...)):
-    print("Uhh... got question:", question)
+async def search_across_documents(files: List[UploadFile] = File(...), question: str = Form(...)):
+    all_results = []
+
+    print(f"🔍 Searching for: {question}")
+
     try:
-        save_here = await save_uploaded_file(file, file.filename)
-        txt_per_pg = extract_text_from_pdf(save_here)
-        print("text done ✅ now gpt 🤖 time")
+        for file in files:
+            print(f"📂 Processing: {file.filename}")
+            file_bytes = await file.read()
+            file_path = save_uploaded_file(file_bytes, file.filename)
+            pages = extract_text_from_pdf(file_path)
 
-        summary_output = generate_chat_style_summary(txt_per_pg, question)
+            matches = extract_relevant_answers(pages, question)
 
-        return summary_output
+            for match in matches:
+                all_results.append({
+                    "doc_id": file.filename,
+                    "answer": match["answer"],
+                    "citation": f"Page {match['page']}, Para {match['paragraph']}"
+                })
 
-    except Exception as gpt_fire:
-        print("🔥 GPT just caught fire:", gpt_fire)
-        return {"oops": "GPT said bye", "what_happened": str(gpt_fire)}
+        return {
+            "table_data": all_results,
+            "chat_summary": f"Found {len(all_results)} results across {len(files)} document(s)."
+        }
+
+    except Exception as kaboom:
+        print("🔥 exploded:", kaboom)
+        return {"error": str(kaboom)}
