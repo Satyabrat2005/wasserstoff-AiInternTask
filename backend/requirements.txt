@@ -6,3 +6,5 @@ pdf2image
 Pillow
 tqdm
 PyMuPDF
+openai
+python-dotenv
