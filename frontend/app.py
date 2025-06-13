@@ -23,7 +23,7 @@ body { background: #000 !important; color: #ddd !important; }
 """, unsafe_allow_html=True)
 
 # your live backend
-API_URL = "https://wasserstoff-aiinterntask-3.onrender.com"
+API_URL = "https://wasserstoff-aiinterntask-backend.onrender.com"
 
 # initialize history once
 if "history" not in st.session_state:
